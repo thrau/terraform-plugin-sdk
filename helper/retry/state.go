@@ -25,6 +25,7 @@ type StateRefreshFunc func() (result interface{}, state string, err error)
 
 // StateChangeConf is the configuration struct used for `WaitForState`.
 type StateChangeConf struct {
+	Reference      string           // Optional reference name for global overrides
 	Delay          time.Duration    // Wait this time before starting checks
 	Pending        []string         // States that are "allowed" and will continue trying
 	Refresh        StateRefreshFunc // Refreshes the current state
@@ -55,6 +56,45 @@ type StateChangeConf struct {
 //
 // Cancellation from the passed in context will cancel the refresh loop
 func (conf *StateChangeConf) WaitForStateContext(ctx context.Context) (interface{}, error) {
+	if conf.Reference != "" {
+		if override, ok := GetStateChangeConfOverrides()[conf.Reference]; ok {
+			log.Printf("[DEBUG] Applying override for %s: %+v", conf.Reference, override)
+			if override.Delay != 0 {
+				conf.Delay = override.Delay
+			}
+
+			if override.Pending != nil {
+				conf.Pending = make([]string, len(override.Pending))
+				copy(conf.Pending, override.Pending)
+			}
+
+			if override.Target != nil {
+				conf.Target = make([]string, len(override.Target))
+				copy(conf.Target, override.Target)
+			}
+
+			if override.Timeout != 0 {
+				conf.Timeout = override.Timeout
+			}
+
+			if override.MinTimeout != 0 {
+				conf.MinTimeout = override.MinTimeout
+			}
+
+			if override.PollInterval != 0 {
+				conf.PollInterval = override.PollInterval
+			}
+
+			if override.NotFoundChecks != 0 {
+				conf.NotFoundChecks = override.NotFoundChecks
+			}
+
+			if override.ContinuousTargetOccurence != 0 {
+				conf.ContinuousTargetOccurence = override.ContinuousTargetOccurence
+			}
+		}
+	}
+
 	log.Printf("[DEBUG] Waiting for state to become: %s", conf.Target)
 
 	notfoundTick := 0
