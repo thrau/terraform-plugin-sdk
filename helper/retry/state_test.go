@@ -374,3 +374,36 @@ func TestWaitForStateContext_cancel(t *testing.T) {
 		t.Fatalf("Expected canceled context error, got: %s", err)
 	}
 }
+
+func TestWaitForState_Override(t *testing.T) {
+	ctx := context.Background()
+	ref := "test.override"
+
+	// Force refresh the cache to include our new override
+	StateChangeConfOverrides[ref] = StateChangeConf{
+		ContinuousTargetOccurence: 3,
+	}
+	defer delete(StateChangeConfOverrides, ref)
+	loadOverrides()
+
+	count := 0
+	conf := &StateChangeConf{
+		Reference: ref,
+		Refresh: func() (interface{}, string, error) {
+			count++
+			return "foo", "done", nil
+		},
+		Target:                    []string{"done"},
+		ContinuousTargetOccurence: 1,
+		Timeout:                   1 * time.Minute,
+	}
+
+	_, err := conf.WaitForStateContext(ctx)
+	if err != nil {
+		t.Fatalf("err: %s", err)
+	}
+
+	if count != 3 {
+		t.Fatalf("expected 3 refreshes, got %d", count)
+	}
+}
